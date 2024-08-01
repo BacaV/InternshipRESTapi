@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Product.Datalayer;
 using Product.Business.DTO;
 using Product.BusinessLayer.Services;
+using Microsoft.AspNetCore.Authorization;
+
 
 namespace Product.Controllers
 {
@@ -27,9 +29,10 @@ namespace Product.Controllers
         [HttpPost]
         public async Task<ActionResult<List<ProductDTO>>> AddProduct(ProductDTO productDTO)
         {
+
             try
             {
-                 _productService.AddProductAsync(productDTO);
+                await _productService.AddProductAsync(productDTO);
                 return Ok(productDTO);
             }
             catch (FluentValidation.ValidationException ex)
@@ -42,28 +45,26 @@ namespace Product.Controllers
         [HttpGet]
         public async Task<ActionResult<List<ProductDTO>>> GetAllProducts()
         {
-            var products = await _productService.GetAllProductsAsync();
-            return Ok(products);
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                return NotFound(ex.Message);
+            }
+
         }
 
-        [HttpGet("{id:int}")]
-        public async Task<ActionResult<ProductDTO>> GetProduct(int id)
-        {
-            var product = await _productService.GetProductByIdAsync(id)
-;
-            if (product != null)
-            {
-                return Ok(product);
-            }
-            return NotFound("Product not found");
-        }
+
 
         [HttpPut]
         public async Task<ActionResult<ProductDTO>> UpdateProduct(ProductDTO productDTO)
         {
             try
             {
-                 await _productService.UpdateProductAsync(productDTO);
+                await _productService.UpdateProductAsync(productDTO);
                 return Ok();
             }
             catch (FluentValidation.ValidationException ex)
@@ -79,14 +80,44 @@ namespace Product.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult<List<ProductDTO>>> DeleteProduct(int id)
         {
-            if (true) {
+
+            try
+            {
                 await _productService.DeleteProductAsync(id);
-            var products = await _productService.GetAllProductsAsync();
+                var products = await _productService.GetAllProductsAsync();
                 return Ok(products);
+
             }
-            else {
-                return NotFound("Product does not exist!");
+            catch (Exception ex)
+            {
+                {
+                    return NotFound(ex.Message);
+                }
+
             }
         }
+
+        [Authorize]
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<ProductDTO>> GetProduct(int id)
+        {
+
+            try
+            {
+                var product = await _productService.GetProductByIdAsync(id)
+;
+                if (product != null)
+                {
+                    return Ok(product);
+                }
+                return NotFound("Product not found");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+
+        }
+
     }
 }
