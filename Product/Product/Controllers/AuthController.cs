@@ -1,7 +1,10 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Product.BusinessLayer.DTO;
+using Product.BusinessLayer.Service;
+using Product.Datalayer;
 using Product.Datalayer.Model;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -15,35 +18,59 @@ namespace Product.Controllers
     {
         public static User user = new User();
         private readonly IConfiguration _configuration;
+        private readonly IUserService _userService;
+        private readonly AppDbContext _context;
 
-        public AuthController(IConfiguration configuration)
+        public AuthController(AppDbContext context, IConfiguration configuration, IUserService userService)
         {
+            _context = context;
             _configuration = configuration;
+           _userService = userService;
         }
 
-        [HttpPost("register")]
-        public ActionResult<User> Register(UserDto request)
-        {
-            string passwordHash
-                = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        
 
-            user.Username = request.Username;
-            user.PasswordHash = passwordHash;
 
-            return Ok(user);
-        }
+            [HttpPost("register")]
+            public async Task<ActionResult<User>> Register(UserDto request)
+            {
+                // Validate role if needed
+              ////  var validRoles = new List<string> { "Admin", "User" }; // Define valid roles
+               // if (!validRoles.Contains(request.Role))
+               // {
+                ///    return BadRequest("Invalid role specified!");
+               // }
+
+                string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+                var user = new User
+                {
+                    Username = request.Username,
+                    PasswordHash = passwordHash,
+                  //  Role = request.Role // Assign the provided role
+                };
+
+                var createdUser = await _userService.RegisterAsync(user);
+
+                return Ok(createdUser);
+            }
+        
 
         [HttpPost("login")]
-        public ActionResult<User> Login(UserDto request)
+        public async Task<ActionResult<string>> Login(UserDto request)
         {
-            if (user.Username == request.Username)
+            //var user = await _userService.GetUserByUsernameAsync(request.Username);
+            var user = await _context.Users.SingleOrDefaultAsync(u => u.Username == request.Username);
+
+
+            if (user == null)
             {
-                return BadRequest("user not found");
+                return BadRequest("User not found!");
             }
 
             if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
-                return BadRequest("wrong pass");
+                return BadRequest("Wrong password!");
             }
 
             string token = CreateToken(user);
@@ -61,7 +88,7 @@ namespace Product.Controllers
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
                 _configuration.GetSection("AppSettings:Token").Value!));
 
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
 
             var token = new JwtSecurityToken(
                 claims: claims,
